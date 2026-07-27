@@ -4,8 +4,8 @@ This branch builds the Spotify Connect renderer (librespot) the same way moOde's
 **Install** button in Renderer Config does, but caps how many compiler jobs run in
 parallel so the board does not run out of RAM and swap to the SD card.
 
-On a 1 GB Pi 3B+ the current moOde build runs 4 jobs: 81 min, and the board
-crashed twice during testing. One job took 73 min and wrote far less to the card.
+On a 1 GB board the current moOde build runs 4 jobs: 81 min, and the board
+crashed twice during testing. Two jobs built the same package in 39 min.
 
 ## Run it
 
@@ -18,9 +18,9 @@ sudo ./librespot-test-build.sh
 It asks how many parallel jobs to use and suggests a count for your board. Press
 Enter to accept the suggestion.
 
-Then wait. The build takes 25 to 90 min depending on the model - about 90 min
-on a 1 GB Pi 3B+, nearer 25 on a Pi 5. Nothing is installed and no service is
-touched, so the player keeps working meanwhile.
+Then wait. The build takes 25 to 90 min depending on the board and the job
+count - around 40 min on a 1 GB Pi 3B, nearer 25 on a Pi 5. Nothing is
+installed and no service is touched, so the player keeps working meanwhile.
 
 ## Running over SSH
 
@@ -74,7 +74,7 @@ model    Raspberry Pi 3 Model B Plus Rev 1.3
 os       Debian GNU/Linux 13 (trixie) (aarch64, arm64)
 ram      926 MB, 4 cores
 rustc    1.96.0
-jobs     1 (advised 1, auto, decided by build.sh)
+jobs     2 auto (2 advised)
 branch   test/librespot-cargo-jobs @ 802f222
 result   OK in 73m12s
 disk     8213 MB written to mmcblk0

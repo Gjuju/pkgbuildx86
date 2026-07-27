@@ -201,7 +201,7 @@ summary () {
 		printf "os       %s (%s)\n"      "$OS_REL" "$DEB_ARCH"
 		printf "ram      %s MB, %s cores\n" "$RAM_MB" "$CORES"
 		printf "rustc    %s\n"           "${RUSTC_VER:-not installed}"
-		printf "jobs     %s (advised %s, %s)\n" "${USED_JOBS:-unknown}" "${ADVISED:-?}" "${JOBS_SOURCE:-?}"
+		printf "jobs     %s %s (%s advised)\n" "${USED_JOBS:-unknown}" "${JOBS_SOURCE:-?}" "${ADVISED:-?}"
 		printf "branch   %s @ %s\n"      "$REPO_BRANCH" "${HEAD_SHA:-?}"
 		printf "result   %s%s\n"         "$result" \
 			"$([ "$ELAPSED" -gt 0 ] && printf " in %dm%02ds" $((ELAPSED / 60)) $((ELAPSED % 60)))"
@@ -264,10 +264,10 @@ else
 fi
 
 # How many parallel rustc this board can hold. Same formula as the branch under
-# test: budget ~1 GB of RAM per job, clamp to [1, nproc]. MemTotal always reads a
-# little under the physical size (CMA/GPU reserved), hence rounding to the
-# nearest GB rather than down - a 2 GB board reports ~1900 MB.
-ADVISED=$(( (RAM_MB + 512) / 1024 ))
+# test: budget 512 MB of RAM per job, clamp to [1, nproc]. The +512 absorbs what
+# MemTotal under-reports (CMA/GPU reserved), so a 1 GB board announcing ~905 MB
+# still lands on 2 jobs.
+ADVISED=$(( (RAM_MB + 512) / 512 ))
 [ "$ADVISED" -lt 1 ] && ADVISED=1
 [ "$ADVISED" -gt "$CORES" ] && ADVISED=$CORES
 
@@ -279,10 +279,10 @@ cat <<EOF
   moOde builds this package with one compiler job per core, so $CORES jobs on this
   board. That is the default this test compares against.
 
-  Each parallel rustc can peak at roughly 1.1 GB of RAM. Asking for more jobs
-  than the RAM can hold pushes the build into swap, and on an SD card that
-  costs both time and card wear: measured on a 1 GB Pi 3B+, 4 jobs took 81 min
-  and crashed the board twice, where 1 job took 73 min and wrote far less.
+  Each parallel rustc can peak at roughly 1.1 GB of RAM, so a small board is
+  always oversubscribed and leans on swap. What matters is by how much.
+  Measured on 1 GB boards: 2 jobs built it in 39 min without trouble, while
+  4 jobs took 81 min and crashed the board twice.
 
   Advised for this board: $ADVISED job(s) out of $CORES cores.
 
@@ -320,9 +320,9 @@ fi
 if [ -n "$JOBS" ]; then
 	JOBS_SOURCE="chosen"
 else
-	JOBS_SOURCE="auto, decided by build.sh"
+	JOBS_SOURCE="auto"
 fi
-log "jobs   ${JOBS:-auto} ($JOBS_SOURCE; advised $ADVISED)"
+log "jobs   ${JOBS:-auto}, advised $ADVISED"
 
 apt-get -y install git sqlite3 >/dev/null 2>&1 || fail "apt install git sqlite3"
 
