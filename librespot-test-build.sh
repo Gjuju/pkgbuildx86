@@ -78,6 +78,18 @@ disk_written_mb () {
 	fi
 }
 
+# Raw /sys/block/<disk>/stat line, for the read and busy-time deltas. Fields:
+# 3 = sectors read, 7 = sectors written, 10 = io_ticks (ms the disk was busy).
+disk_stat () {
+	[ -r "/sys/block/$BOOT_DISK/stat" ] && cat "/sys/block/$BOOT_DISK/stat"
+}
+
+# Aggregate CPU jiffies, for the iowait share. Fields after "cpu":
+# user nice system idle iowait irq softirq steal ...
+cpu_stat () {
+	awk '/^cpu / {print}' /proc/stat
+}
+
 # MB paged out to swap since boot (pswpout counts 4 KB pages)
 swap_written_mb () {
 	awk '/^pswpout/ {print int($2 * 4 / 1024)}' /proc/vmstat
@@ -114,6 +126,9 @@ ELAPSED=0
 DISK_MB=""
 SWAP_MB=""
 SWAP_PEAK=""
+IOWAIT_PCT=""
+DISK_READ_MB=""
+DISK_BUSY_PCT=""
 LOAD_PEAK=""
 USED_JOBS=""
 DEB=""
@@ -134,6 +149,10 @@ summary () {
 		[ -n "$DISK_MB" ]   && printf "disk     %s MB written to %s\n" "$DISK_MB" "$BOOT_DISK"
 		[ -n "$SWAP_MB" ]   && printf "swap     %s MB paged out, peak %s MB in use\n" "$SWAP_MB" "${SWAP_PEAK:-?}"
 		[ -n "$LOAD_PEAK" ] && printf "load     peak %s (1 min avg, %s cores), sampled every 30 s\n" "$LOAD_PEAK" "$CORES"
+		if [ -n "$IOWAIT_PCT" ] || [ -n "$DISK_READ_MB" ]; then
+			printf "io       %s%% iowait, card busy %s%% of the build, %s MB read\n" \
+				"${IOWAIT_PCT:-?}" "${DISK_BUSY_PCT:-?}" "${DISK_READ_MB:-?}"
+		fi
 		[ -n "$DEB" ]       && printf "package  %s\n" "$(basename "$DEB")"
 		echo "==========================================="
 		echo "full log: $LOG"
@@ -243,7 +262,9 @@ done ) &
 SAMPLER=$!
 trap 'kill $SAMPLER 2>/dev/null' EXIT
 
-DISK_START="$(disk_written_mb)"
+DISK_START="$(disk_written_mb)"          # also resolves BOOT_DISK
+DISK_STAT_START="$(disk_stat)"
+CPU_STAT_START="$(cpu_stat)"
 SWAP_START="$(swap_written_mb)"
 
 cd "$PKG_DIR" || fail "no package dir $PKG_DIR"
@@ -256,6 +277,22 @@ ELAPSED=$((SECONDS - START))
 sync
 [ -n "$DISK_START" ] && DISK_MB=$(( $(disk_written_mb) - DISK_START ))
 SWAP_MB=$(( $(swap_written_mb) - SWAP_START ))
+
+# MB read from the card, and the share of the build during which it was busy
+# (io_ticks is in ms). A card busy most of the build is the I/O bound case.
+if [ -n "$DISK_STAT_START" ] && [ "$ELAPSED" -gt 0 ]; then
+	DISK_READ_MB="$(LC_ALL=C awk -v s="$DISK_STAT_START" '{split(s, b); print int(($3 - b[3]) / 2048)}' <<< "$(disk_stat)")"
+	DISK_BUSY_PCT="$(LC_ALL=C awk -v s="$DISK_STAT_START" -v e="$ELAPSED" '{split(s, b); printf "%.0f", ($10 - b[10]) / (e * 1000) * 100}' <<< "$(disk_stat)")"
+fi
+
+# Share of CPU time spent waiting on I/O rather than computing. Fuzzy on
+# multi-core, but it is the number that separates "compiling" from "thrashing".
+IOWAIT_PCT="$(LC_ALL=C awk -v s="$CPU_STAT_START" '
+	{
+		split(s, b)
+		for (i = 2; i <= NF; i++) { tot += $i - b[i] }
+		if (tot > 0) printf "%.0f", ($6 - b[6]) / tot * 100
+	}' <<< "$(cpu_stat)")"
 # LC_ALL=C: loadavg always uses a dot, so keep awk's numeric parsing off the
 # user's locale whatever awk implementation this board ships.
 SWAP_PEAK="$(LC_ALL=C awk 'NR == 1 || $1 > m {m = $1} END {print m + 0}' "$SAMPLES" 2>/dev/null)"

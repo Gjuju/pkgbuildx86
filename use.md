@@ -37,6 +37,7 @@ result   OK in 73m12s
 disk     8213 MB written to mmcblk0
 swap     5104 MB paged out, peak 782 MB in use
 load     peak 2.10 (1 min avg, 4 cores), sampled every 30 s
+io       11% iowait, card busy 34% of the build, 1204 MB read
 package  librespot_0.8.0-1moode1_arm64.deb
 ===========================================
 ```
