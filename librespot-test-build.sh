@@ -162,6 +162,21 @@ PKG_DIR="$CLONE_DIR/packages/librespot"
 LOG="$HOME_DIR/librespot-test-build.log"
 SAMPLES="$HOME_DIR/librespot-test-build.samples"
 
+# We run as root, so everything we drop in the home is root owned. Hand it back
+# on every exit path - including a failed build and Ctrl-C, which is exactly
+# when the tester wants to read their own log. Armed here, before the first file
+# is created, so an early failure is covered too.
+restore_ownership () {
+	local rc=$?
+	# no bare "kill $SAMPLER": unset would expand to 0 and signal the whole group
+	[ -n "${SAMPLER:-}" ] && kill "$SAMPLER" 2>/dev/null
+	chown -R "$OWNER": "$CLONE_DIR" 2>/dev/null
+	chown "$OWNER": "$LOG" "$SAMPLES" 2>/dev/null
+	[ -n "${DEB:-}" ] && chown "$OWNER": "$HOME_DIR/$(basename "$DEB")" 2>/dev/null
+	return $rc
+}
+trap restore_ownership EXIT
+
 # [ -r ] first: the 2>/dev/null covers tr, not the shell's own redirection error
 MODEL=""
 [ -r /proc/device-tree/model ] && MODEL="$(tr -d '\0' < /proc/device-tree/model)"
@@ -357,8 +372,7 @@ export DEBEMAIL=User@Email.com
 	echo "$(awk '/^SwapTotal/ {t = $2} /^SwapFree/ {f = $2} END {print int((t - f) / 1024)}' /proc/meminfo) $(cut -d' ' -f1 /proc/loadavg)" >> "$SAMPLES"
 	sleep 30
 done ) &
-SAMPLER=$!
-trap 'kill $SAMPLER 2>/dev/null' EXIT
+SAMPLER=$!	# the EXIT trap set above stops it and restores ownership
 
 DISK_START="$(disk_written_mb)"
 DISK_STAT_START="$(disk_stat)"
@@ -395,7 +409,7 @@ IOWAIT_PCT="$(LC_ALL=C awk -v s="$CPU_STAT_START" '
 # user's locale whatever awk implementation this board ships.
 SWAP_PEAK="$(LC_ALL=C awk 'NR == 1 || $1 > m {m = $1} END {print m + 0}' "$SAMPLES" 2>/dev/null)"
 LOAD_PEAK="$(LC_ALL=C awk 'NR == 1 || $2 > m {m = $2} END {printf "%.2f", m}' "$SAMPLES" 2>/dev/null)"
-kill $SAMPLER 2>/dev/null
+kill "$SAMPLER" 2>/dev/null
 
 # The branch under test echoes the jobs count it picked; upstream main does not,
 # where cargo silently defaults to one rustc per core.
@@ -410,9 +424,6 @@ DEB="$(ls -1t "$PKG_DIR"/dist/binary/librespot_*.deb 2>/dev/null | head -1)"
 [ -n "$DEB" ] || fail "no .deb in $PKG_DIR/dist/binary"
 
 cp "$DEB" "$HOME_DIR/" || fail "cp to $HOME_DIR"
-chown "$OWNER": "$HOME_DIR/$(basename "$DEB")"
-chown -R "$OWNER": "$CLONE_DIR" 2>/dev/null
-chown "$OWNER": "$LOG" "$SAMPLES" 2>/dev/null
 log "** Package: $HOME_DIR/$(basename "$DEB")"
 
 # moodeutl --installpkg builds the filename from cfg_plugin.version and tests it
