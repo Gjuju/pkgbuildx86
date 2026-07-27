@@ -70,17 +70,19 @@ The script ends with a summary block. Copy it into your forum reply:
 
 ```text
 ===== copy this into your forum reply =====
-model    Raspberry Pi 3 Model B Plus Rev 1.3
-os       Debian GNU/Linux 13 (trixie) (aarch64, arm64)
-ram      926 MB, 4 cores
+moode    10.3.1 2026-07-22
+model    Raspberry Pi 3 Model B Rev 1.2
+pirev    0xa22082 3B 1.2 1GB Embest BCM2837 3 1
+os       RPiOS: 13.6 Trixie 64-bit | Linux: 6.18.34 64-bit (arm64)
+ram      905 MB, 4 cores
 rustc    1.96.0
-jobs     2 auto (2 advised)
-branch   test/librespot-cargo-jobs @ 802f222
-result   OK in 73m12s
-disk     8213 MB written to mmcblk0
-swap     5104 MB paged out, peak 782 MB in use
-load     peak 2.10 (1 min avg, 4 cores), sampled every 30 s
-io       11% iowait, card busy 34% of the build, 1204 MB read
+jobs     2 chosen (1 advised)
+branch   test/librespot-cargo-jobs @ 3120e91
+result   OK in 38m55s
+disk     3823 MB written to mmcblk0
+swap     3055 MB paged out, peak 1501 MB in use
+load     peak 3.94 (1 min avg, 4 cores), sampled every 30 s
+io       20% iowait, card busy 27% of the build, 4796 MB read
 package  librespot_0.8.0-1moode1_arm64.deb
 ===========================================
 ```
@@ -89,6 +91,32 @@ A build that fails prints the same block, with what it got to. Those runs are th
 most useful ones, please post them too.
 
 The full log is `librespot-test-build.log` in your home directory.
+
+## If the build fails with a rustc crash
+
+There is a known crash that has nothing to do with your board or with anything
+you did. The log ends like this:
+
+```text
+error: rustc interrupted by SIGSEGV, printing backtrace
+  libLLVM.so...(llvm::FPPassManager::runOnFunction+0x6b0)
+error: could not compile `librespot-protocol` (lib)   (signal: 11)
+```
+
+The compiler runs out of stack while generating code for one crate. It is not
+out of memory, and it is not caused by the number of jobs - it hits at random,
+so the same command may well succeed on the next attempt.
+
+**Please post the failed report first**, then try again with a bigger compiler
+stack, which is the remedy rustc itself suggests:
+
+```bash
+sudo RUST_MIN_STACK=16777216 ./librespot-test-build.sh --keep-clone
+```
+
+`--keep-clone` reuses what is already downloaded. Post that second report too,
+and say whether it was a retry - whether the workaround helps is exactly what we
+are trying to find out.
 
 ## Install what was built
 
