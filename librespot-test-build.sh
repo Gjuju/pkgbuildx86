@@ -342,14 +342,18 @@ log "jobs   ${JOBS:-auto}, advised $ADVISED"
 
 apt-get -y install git sqlite3 >/dev/null 2>&1 || fail "apt install git sqlite3"
 
-# Clone the fork and check out the branch under test. --keep-clone fetches the
-# branch into the existing clone instead, so two branches can be compared back
-# to back without re-cloning.
+# Clone the fork and check out the branch under test. --keep-clone resets the
+# existing clone onto the branch instead, so a retry costs no download and two
+# branches can be compared back to back. The explicit refspec updates the
+# remote-tracking ref even for a branch this shallow clone was not created from,
+# which a bare "fetch origin" would not do.
 if [ "$KEEP_CLONE" = 1 ] && [ -d "$CLONE_DIR/.git" ]; then
-	log "reusing clone, checking out $REPO_BRANCH"
-	git -C "$CLONE_DIR" fetch --depth 1 origin "$REPO_BRANCH" || fail "git fetch $REPO_BRANCH"
-	git -C "$CLONE_DIR" checkout -B "$REPO_BRANCH" FETCH_HEAD || fail "git checkout $REPO_BRANCH"
-	git -C "$CLONE_DIR" clean -fdx >/dev/null 2>&1
+	log "reusing clone, resetting to origin/$REPO_BRANCH"
+	git -C "$CLONE_DIR" fetch --depth 1 origin \
+		"+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH" \
+		|| fail "git fetch $REPO_BRANCH"
+	git -C "$CLONE_DIR" reset --hard "origin/$REPO_BRANCH" \
+		|| fail "git reset --hard origin/$REPO_BRANCH"
 else
 	rm -rf "$CLONE_DIR"
 	git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$CLONE_DIR" \
@@ -381,6 +385,14 @@ CPU_STAT_START="$(cpu_stat)"
 SWAP_START="$(swap_written_mb)"
 
 cd "$PKG_DIR" || fail "no package dir $PKG_DIR"
+
+# Drop any package left by a previous run. dist/binary is untracked, so
+# --keep-clone's reset --hard leaves it in place, and build.sh exits 0 even when
+# the compile failed (a bare "exit" after its error message returns the status of
+# the echo). The presence of a freshly built .deb is therefore our only reliable
+# success signal - a stale one would let a failed build report success.
+rm -f "$PKG_DIR"/dist/binary/librespot_*.deb
+
 log "** Building librespot - 25 to 90 min depending on the board, about 90 on a 1 GB Pi 3B+"
 
 # Known failure, unrelated to the job count: rustc 1.96.0 on aarch64 can die

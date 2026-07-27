@@ -132,10 +132,15 @@ Then reboot and turn Spotify Connect on in Configure > Renderers.
 ## Options
 
 ```bash
-sudo ./librespot-test-build.sh --jobs 4     # force a job count, no prompt
-sudo ./librespot-test-build.sh --auto       # no prompt, let the script decide
+sudo ./librespot-test-build.sh --jobs 4      # force a job count, no prompt
+sudo ./librespot-test-build.sh --auto        # no prompt, let the script decide
+sudo ./librespot-test-build.sh --keep-clone  # reuse the download, for a retry
 sudo ./librespot-test-build.sh --help
 ```
+
+`--keep-clone` resets the copy already in your home directory onto the latest
+version of the branch instead of downloading it again - use it for a second run.
+Without it, every run starts from a fresh download.
 
 Download the script rather than piping it into a shell - piped, it cannot ask you
 anything and will pick the job count on its own.
