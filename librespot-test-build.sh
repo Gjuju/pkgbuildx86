@@ -14,8 +14,9 @@
 # Prints a summary block at the end - please copy that into your forum reply.
 #
 # Usage: sudo ./librespot-test-build.sh [options]
-#   --jobs N       parallel rustc jobs; skips the prompt (N, or 'auto')
-#   --auto         skip the prompt and use the advised count
+#   --jobs N       parallel rustc jobs, skips the prompt ('auto' to let
+#                  build.sh decide, which is what pressing Enter does)
+#   --auto         skip the prompt, let build.sh decide
 #   --keep-clone   reuse the existing clone (just fetch + checkout the branch)
 #
 # Env overrides: REPO_URL, REPO_BRANCH
@@ -34,7 +35,12 @@ NO_PROMPT=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--keep-clone) KEEP_CLONE=1 ;;
-		--jobs)       shift; JOBS="$1"; NO_PROMPT=1 ;;
+		--jobs)       shift
+		              JOBS="$1"; NO_PROMPT=1
+		              [ "$JOBS" = auto ] && JOBS=""
+		              [ -n "$JOBS" ] && ! printf '%s' "$JOBS" | grep -qE '^[1-9][0-9]*$' \
+		                  && { echo "--jobs takes a number or 'auto'" >&2; exit 1; }
+		              ;;
 		--auto|--yes) NO_PROMPT=1 ;;
 		# print the header comment, whatever line it starts on
 		-h|--help)    awk 'NR > 2 && /^#/ {sub(/^# ?/, ""); print; next} NR > 2 {exit}' "$0"; exit 0 ;;
@@ -163,23 +169,31 @@ cat <<EOF
 
 EOF
 
+# Offer 1, 2, 4 ... up to the core count rather than any integer: these are the
+# values worth comparing across testers.
+CHOICES=""
+n=1
+while [ "$n" -le "$CORES" ]; do
+	CHOICES="$CHOICES $n"
+	n=$((n * 2))
+done
+CHOICE_LIST="$(echo $CHOICES | tr ' ' ',' | sed 's/,/, /g')"
+
 if [ "$NO_PROMPT" = 0 ] && [ -t 0 ]; then
 	while :; do
-		printf "  Jobs to use [%s], or 'auto' to let build.sh decide: " "$ADVISED"
+		printf "  Jobs to use - %s - or just Enter for auto (advised: %s): " "$CHOICE_LIST" "$ADVISED"
 		read -r reply || reply=""
-		reply="${reply:-$ADVISED}"
-		if [ "$reply" = auto ]; then
+		if [ -z "$reply" ]; then
 			JOBS=""; break
-		elif printf '%s' "$reply" | grep -qE '^[1-9][0-9]*$'; then
-			JOBS="$reply"
-			if [ "$JOBS" -gt "$CORES" ]; then
-				echo "  $JOBS exceeds the $CORES cores of this board - pick $CORES or less."
-				continue
-			fi
-			[ "$JOBS" -gt "$ADVISED" ] && echo "  Note: above the advised $ADVISED, expect swapping."
-			break
 		fi
-		echo "  Enter a number between 1 and $CORES, or 'auto'."
+		case " $CHOICES " in
+			*" $reply "*)
+				JOBS="$reply"
+				[ "$JOBS" -gt "$ADVISED" ] && echo "  Note: above the advised $ADVISED, expect swapping."
+				break
+				;;
+		esac
+		echo "  Enter one of $CHOICE_LIST, or nothing for auto."
 	done
 	echo
 fi
