@@ -18,8 +18,51 @@ sudo ./librespot-test-build.sh
 It asks how many parallel jobs to use and suggests a count for your board. Press
 Enter to accept the suggestion.
 
-Then wait. The build takes 25 to 90 min depending on the model. Nothing is
-installed and no service is touched, so the player keeps working meanwhile.
+Then wait. The build takes 25 to 90 min depending on the model - about 90 min
+on a 1 GB Pi 3B+, nearer 25 on a Pi 5. Nothing is installed and no service is
+touched, so the player keeps working meanwhile.
+
+## Running over SSH
+
+Most people run this from another machine over SSH. **A build takes 25 to 90
+minutes, and it dies the moment the SSH session ends** - whatever ends it:
+
+- the laptop or desktop you are connected from going to sleep
+- the wifi dropping, the router restarting, switching network
+- closing the terminal window, or closing the laptop lid
+- a phone or tablet SSH app being backgrounded by the system
+- an idle timeout on your side or on the Pi
+
+The reason is not the Pi giving up: when the session ends, the system sends a
+hangup signal to everything running in that terminal, and the terminal itself
+disappears, so the build has nowhere left to write. Running it with `&` in the
+background does not help.
+
+The fix is to start the build in a session that outlives the connection.
+
+**With tmux** (or `screen`), which also keeps the question at the start working:
+
+```bash
+tmux new -s build
+sudo ./librespot-test-build.sh
+```
+
+Press `Ctrl-b` then `d` to detach - the build keeps going. Reconnect later and
+run `tmux attach -t build` to see where it is. With `screen`, the commands are
+`screen -S build`, `Ctrl-a` then `d`, and `screen -r build`.
+
+If neither is installed: `sudo apt install tmux`.
+
+**Without tmux**, start it detached. It cannot ask you anything this way, so pass
+the job count on the command line:
+
+```bash
+sudo nohup ./librespot-test-build.sh --auto > /dev/null 2>&1 &
+tail -f ~/librespot-test-build.log
+```
+
+The `tail` is only a viewer - interrupting it or losing the connection leaves the
+build running. Reconnect and `tail -f` again, or just read the file at the end.
 
 ## Report back
 

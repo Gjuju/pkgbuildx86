@@ -105,6 +105,30 @@ cpu_stat () {
 	awk '/^cpu / {print}' /proc/stat
 }
 
+# Is this a bare SSH session, one a dropped link would kill? sudo's env_reset
+# drops SSH_TTY, TMUX and STY, so walk the process tree instead. PPid comes from
+# /proc/<pid>/status, not stat, whose comm field can itself contain spaces.
+# Match on the executable, not just comm: a process can rewrite its own comm
+# (bash does), while /proc/<pid>/exe still points at the real binary. We run as
+# root, so the link is readable for every ancestor.
+session_kind () {
+	local pid="$PPID" name exe n=0
+	while [ "$pid" -gt 1 ] && [ "$n" -lt 12 ]; do
+		name="$(cat "/proc/$pid/comm" 2>/dev/null)"
+		exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
+		case "${exe##*/} $name" in
+			tmux*|*" tmux"*|screen*|*" screen"*|SCREEN*|*" SCREEN"*)
+				echo multiplexed; return ;;
+			sshd*|*" sshd"*)
+				echo ssh; return ;;
+		esac
+		pid="$(awk '/^PPid:/ {print $2}' "/proc/$pid/status" 2>/dev/null)"
+		[ -n "$pid" ] || break
+		n=$((n + 1))
+	done
+	echo local
+}
+
 # MB paged out to swap since boot (pswpout counts 4 KB pages)
 swap_written_mb () {
 	awk '/^pswpout/ {print int($2 * 4 / 1024)}' /proc/vmstat
@@ -220,6 +244,16 @@ if command -v mpc >/dev/null 2>&1 && mpc status 2>/dev/null | grep -q '^\[playin
 	log "[!] cause audio dropouts. Stop playback for a clean run."
 fi
 
+# A dropped SSH session takes the build with it, and this one runs for up to
+# 90 min. Warn only when there is no multiplexer to survive it.
+if [ "$(session_kind)" = ssh ]; then
+	log "[!] Bare SSH session. This build runs up to 90 min and dies with the"
+	log "[!] connection - laptop sleeping, wifi dropping, terminal closed."
+	log "[!] Ctrl-C now and restart it under a multiplexer that survives:"
+	log "[!]   tmux new -s build      (Ctrl-b then d detaches, tmux attach -t build)"
+	log "[!] See 'Running over SSH' in use.md for the nohup alternative."
+fi
+
 # Resolve the counters now, not after a 70 min build: a tester who is going to
 # get "n/a" in the report should know before starting, not after.
 if resolve_boot_disk; then
@@ -332,7 +366,7 @@ CPU_STAT_START="$(cpu_stat)"
 SWAP_START="$(swap_written_mb)"
 
 cd "$PKG_DIR" || fail "no package dir $PKG_DIR"
-log "** Building librespot - this takes 25 to 90 min depending on the board"
+log "** Building librespot - 25 to 90 min depending on the board, about 90 on a 1 GB Pi 3B+"
 START=$SECONDS
 ./build.sh 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
