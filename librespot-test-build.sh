@@ -114,6 +114,15 @@ swap_written_mb () {
 # Environment
 #
 
+# This is a moOde benchmark: it builds what moOde's Install button builds, and
+# reports figures only comparable between moOde systems. Refuse anything else
+# now rather than failing late, after an hour of compiling.
+if ! command -v moodeutl >/dev/null 2>&1 || [ ! -f "$SQLDB" ]; then
+	echo "This script benchmarks the librespot build on a moOde player." >&2
+	echo "It needs moOde installed (moodeutl and $SQLDB), and found neither." >&2
+	exit 1
+fi
+
 # Home dir of the player user: SUDO_USER when invoked through sudo, else the
 # same resolution moodeutl's getUserID() uses (first entry in /home).
 if [ -n "${SUDO_USER:-}" ]; then
@@ -129,13 +138,22 @@ PKG_DIR="$CLONE_DIR/packages/librespot"
 LOG="$HOME_DIR/librespot-test-build.log"
 SAMPLES="$HOME_DIR/librespot-test-build.samples"
 
-MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)"
+# [ -r ] first: the 2>/dev/null covers tr, not the shell's own redirection error
+MODEL=""
+[ -r /proc/device-tree/model ] && MODEL="$(tr -d '\0' < /proc/device-tree/model)"
 [ -n "$MODEL" ] || MODEL="$(awk -F': ' '/^Model/ {print $2; exit}' /proc/cpuinfo)"
 [ -n "$MODEL" ] || MODEL="unknown"
 RAM_MB="$(awk '/MemTotal/ {print int($2 / 1024)}' /proc/meminfo)"
 CORES="$(nproc)"
 DEB_ARCH="$(dpkg --print-architecture)"
-OS_REL="$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
+
+# moOde's own identity, so reports are comparable between testers: the release
+# pins which librespot version and rustc pin are in play. pirev is tab
+# separated (code, type, rev, mem, manufacturer, processor ...), squeeze it.
+MOODE_REL="$(moodeutl --mooderel 2>/dev/null | tr -d '\n')"
+PIREV="$(moodeutl --pirev 2>/dev/null | tr '\t' ' ' | tr -s ' ')"
+OS_REL="$(moodeutl --osinfo 2>/dev/null | tr -d '\n')"
+[ -n "$OS_REL" ] || OS_REL="$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
 
 ELAPSED=0
 DISK_MB=""
@@ -153,8 +171,10 @@ summary () {
 	{
 		echo
 		echo "===== copy this into your forum reply ====="
+		printf "moode    %s\n"           "${MOODE_REL:-unknown}"
 		printf "model    %s\n"           "$MODEL"
-		printf "os       %s (%s, %s)\n"  "$OS_REL" "$(uname -m)" "$DEB_ARCH"
+		[ -n "$PIREV" ] && printf "pirev    %s\n" "$PIREV"
+		printf "os       %s (%s)\n"      "$OS_REL" "$DEB_ARCH"
 		printf "ram      %s MB, %s cores\n" "$RAM_MB" "$CORES"
 		printf "rustc    %s\n"           "${RUSTC_VER:-not installed}"
 		printf "jobs     %s (advised %s, %s)\n" "${USED_JOBS:-unknown}" "${ADVISED:-?}" "${JOBS_SOURCE:-?}"
@@ -191,6 +211,14 @@ summary () {
 log "repo   $REPO_URL"
 log "branch $REPO_BRANCH"
 log "board  $MODEL - $RAM_MB MB, $CORES cores, $DEB_ARCH"
+log "moode  ${MOODE_REL:-unknown}"
+
+# A long full-load build on a small board can starve MPD. Warn, do not refuse:
+# it is the tester's player and their call.
+if command -v mpc >/dev/null 2>&1 && mpc status 2>/dev/null | grep -q '^\[playing\]'; then
+	log "[!] MPD is playing. This build loads every core for a long time and can"
+	log "[!] cause audio dropouts. Stop playback for a clean run."
+fi
 
 # Resolve the counters now, not after a 70 min build: a tester who is going to
 # get "n/a" in the report should know before starting, not after.
@@ -213,6 +241,9 @@ cat <<EOF
 
   Board          $MODEL
   Memory         $RAM_MB MB, $CORES cores
+
+  moOde builds this package with one compiler job per core, so $CORES jobs on this
+  board. That is the default this test compares against.
 
   Each parallel rustc peaks at roughly 1.1 GB of RAM. Asking for more jobs than
   the RAM can hold pushes the build into swap, and on an SD card that costs both
