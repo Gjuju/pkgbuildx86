@@ -114,6 +114,7 @@ ELAPSED=0
 DISK_MB=""
 SWAP_MB=""
 SWAP_PEAK=""
+LOAD_PEAK=""
 USED_JOBS=""
 DEB=""
 
@@ -132,6 +133,7 @@ summary () {
 			"$([ "$ELAPSED" -gt 0 ] && printf " in %dm%02ds" $((ELAPSED / 60)) $((ELAPSED % 60)))"
 		[ -n "$DISK_MB" ]   && printf "disk     %s MB written to %s\n" "$DISK_MB" "$BOOT_DISK"
 		[ -n "$SWAP_MB" ]   && printf "swap     %s MB paged out, peak %s MB in use\n" "$SWAP_MB" "${SWAP_PEAK:-?}"
+		[ -n "$LOAD_PEAK" ] && printf "load     peak %s (1 min avg, %s cores), sampled every 30 s\n" "$LOAD_PEAK" "$CORES"
 		[ -n "$DEB" ]       && printf "package  %s\n" "$(basename "$DEB")"
 		echo "==========================================="
 		echo "full log: $LOG"
@@ -229,12 +231,13 @@ export DEBFULLNAME=User
 export DEBEMAIL=User@Email.com
 [ -n "$JOBS" ] && export CARGO_BUILD_JOBS="$JOBS"
 
-# Sample swap usage every 30 s, keeping only the peak. The written-bytes figures
-# are counter deltas and need no sampling. Read /proc/meminfo rather than free,
-# whose column labels are translated and would not match under a non-en locale.
+# Sample swap in use and load average every 30 s, keeping only the peaks. The
+# written-bytes figures are counter deltas and need no sampling. Read
+# /proc/meminfo rather than free, whose column labels are translated and would
+# not match under a non-en locale. Two columns: swap MB, 1 min load.
 : > "$SAMPLES"
 ( while :; do
-	awk '/^SwapTotal/ {t = $2} /^SwapFree/ {f = $2} END {print int((t - f) / 1024)}' /proc/meminfo >> "$SAMPLES"
+	echo "$(awk '/^SwapTotal/ {t = $2} /^SwapFree/ {f = $2} END {print int((t - f) / 1024)}' /proc/meminfo) $(cut -d' ' -f1 /proc/loadavg)" >> "$SAMPLES"
 	sleep 30
 done ) &
 SAMPLER=$!
@@ -253,7 +256,10 @@ ELAPSED=$((SECONDS - START))
 sync
 [ -n "$DISK_START" ] && DISK_MB=$(( $(disk_written_mb) - DISK_START ))
 SWAP_MB=$(( $(swap_written_mb) - SWAP_START ))
-SWAP_PEAK="$(sort -n "$SAMPLES" 2>/dev/null | tail -1)"
+# LC_ALL=C: loadavg always uses a dot, so keep awk's numeric parsing off the
+# user's locale whatever awk implementation this board ships.
+SWAP_PEAK="$(LC_ALL=C awk 'NR == 1 || $1 > m {m = $1} END {print m + 0}' "$SAMPLES" 2>/dev/null)"
+LOAD_PEAK="$(LC_ALL=C awk 'NR == 1 || $2 > m {m = $2} END {printf "%.2f", m}' "$SAMPLES" 2>/dev/null)"
 kill $SAMPLER 2>/dev/null
 
 # The branch under test echoes the jobs count it picked; upstream main does not,

@@ -9,7 +9,7 @@ crashed twice during testing. One job took 73 min and wrote far less to the card
 
 ## Run it
 
-```
+```bash
 wget https://raw.githubusercontent.com/Gjuju/pkgbuildx86/test/librespot-cargo-jobs/librespot-test-build.sh
 chmod +x librespot-test-build.sh
 sudo ./librespot-test-build.sh
@@ -25,7 +25,7 @@ installed and no service is touched, so the player keeps working meanwhile.
 
 The script ends with a summary block. Copy it into your forum reply:
 
-```
+```text
 ===== copy this into your forum reply =====
 model    Raspberry Pi 3 Model B Plus Rev 1.3
 os       Debian GNU/Linux 13 (trixie) (aarch64, arm64)
@@ -36,6 +36,7 @@ branch   test/librespot-cargo-jobs @ 802f222
 result   OK in 73m12s
 disk     8213 MB written to mmcblk0
 swap     5104 MB paged out, peak 782 MB in use
+load     peak 2.10 (1 min avg, 4 cores), sampled every 30 s
 package  librespot_0.8.0-1moode1_arm64.deb
 ===========================================
 ```
@@ -49,7 +50,7 @@ The full log is `librespot-test-build.log` in your home directory.
 
 The package is left in your home directory. To install it:
 
-```
+```bash
 cd ~
 sudo moodeutl --installpkg spotify
 ```
@@ -58,7 +59,7 @@ Then reboot and turn Spotify Connect on in Configure > Renderers.
 
 ## Options
 
-```
+```bash
 sudo ./librespot-test-build.sh --jobs 4     # force a job count, no prompt
 sudo ./librespot-test-build.sh --auto       # no prompt, let the script decide
 sudo ./librespot-test-build.sh --help
