@@ -19,7 +19,8 @@
 #   --auto         skip the prompt, let build.sh decide
 #   --keep-clone   reuse the existing clone (just fetch + checkout the branch)
 #
-# Env overrides: REPO_URL, REPO_BRANCH
+# Env overrides: REPO_URL, REPO_BRANCH, and RUST_MIN_STACK - see the note next
+# to the build call about the rustc SIGSEGV on aarch64.
 #
 
 set -u
@@ -381,6 +382,21 @@ SWAP_START="$(swap_written_mb)"
 
 cd "$PKG_DIR" || fail "no package dir $PKG_DIR"
 log "** Building librespot - 25 to 90 min depending on the board, about 90 on a 1 GB Pi 3B+"
+
+# Known failure, unrelated to the job count: rustc 1.96.0 on aarch64 can die
+# with SIGSEGV inside LLVM (FPPassManager::runOnFunction, in a codegen worker
+# thread) while compiling librespot-protocol - generated protobuf code, huge
+# functions, deep LLVM recursion. rustc prints the remedy itself:
+#
+#     help: you can increase rustc's stack size by setting RUST_MIN_STACK=16777216
+#
+# It is a codegen thread stack overflow, so it strikes at random and a rebuild
+# with the same job count may well succeed. To test the workaround:
+#
+#     sudo RUST_MIN_STACK=16777216 ./librespot-test-build.sh --jobs 2
+#
+# sudo does pass it through (verified in /proc/<rustc>/environ), and it is
+# inherited by build.sh and cargo from here, so nothing to plumb.
 START=$SECONDS
 ./build.sh 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
