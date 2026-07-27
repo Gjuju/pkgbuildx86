@@ -245,10 +245,10 @@ cat <<EOF
   moOde builds this package with one compiler job per core, so $CORES jobs on this
   board. That is the default this test compares against.
 
-  Each parallel rustc peaks at roughly 1.1 GB of RAM. Asking for more jobs than
-  the RAM can hold pushes the build into swap, and on an SD card that costs both
-  time and card wear: measured on a 1 GB Pi 3B+, 4 jobs took 81 min and crashed
-  the board twice, where 1 job took 73 min and wrote far less.
+  Each parallel rustc can peak at roughly 1.1 GB of RAM. Asking for more jobs
+  than the RAM can hold pushes the build into swap, and on an SD card that
+  costs both time and card wear: measured on a 1 GB Pi 3B+, 4 jobs took 81 min
+  and crashed the board twice, where 1 job took 73 min and wrote far less.
 
   Advised for this board: $ADVISED job(s) out of $CORES cores.
 
