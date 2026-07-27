@@ -63,13 +63,28 @@ fail () { echo "** FAILED: $*" | tee -a "${LOG:-/dev/null}"; summary FAILED; exi
 # MB written to the whole disk backing / (not just the partition), so swap
 # traffic is included - on a thrashing board that is most of the volume.
 BOOT_DISK=""
-disk_written_mb () {
-	if [ -z "$BOOT_DISK" ]; then
-		local src
-		src="$(findmnt -no SOURCE / 2>/dev/null)"
-		BOOT_DISK="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)"
-		[ -z "$BOOT_DISK" ] && BOOT_DISK="$(basename "${src:-none}")"
+resolve_boot_disk () {
+	local src part
+	src="$(findmnt -no SOURCE / 2>/dev/null)"
+	# some Pi images report /dev/root, a symlink to the real partition
+	[ -L "$src" ] && src="$(readlink -f "$src")"
+	part="$(basename "${src:-none}")"
+
+	BOOT_DISK="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)"
+	[ -n "$BOOT_DISK" ] || BOOT_DISK="$part"
+
+	# lsblk gave nothing usable: strip the partition suffix ourselves.
+	# mmcblk0p2 -> mmcblk0, nvme0n1p1 -> nvme0n1, sda2 -> sda
+	if [ ! -r "/sys/block/$BOOT_DISK/stat" ]; then
+		case "$BOOT_DISK" in
+			*p[0-9]*) BOOT_DISK="${BOOT_DISK%p[0-9]*}" ;;
+			*[0-9])   BOOT_DISK="${BOOT_DISK%%[0-9]*}" ;;
+		esac
 	fi
+	[ -r "/sys/block/$BOOT_DISK/stat" ]
+}
+
+disk_written_mb () {
 	if [ -r "/sys/block/$BOOT_DISK/stat" ]; then
 		# field 7 = sectors written, 512 bytes each
 		awk '{print int($7 / 2048)}' "/sys/block/$BOOT_DISK/stat"
@@ -146,12 +161,21 @@ summary () {
 		printf "branch   %s @ %s\n"      "$REPO_BRANCH" "${HEAD_SHA:-?}"
 		printf "result   %s%s\n"         "$result" \
 			"$([ "$ELAPSED" -gt 0 ] && printf " in %dm%02ds" $((ELAPSED / 60)) $((ELAPSED % 60)))"
-		[ -n "$DISK_MB" ]   && printf "disk     %s MB written to %s\n" "$DISK_MB" "$BOOT_DISK"
-		[ -n "$SWAP_MB" ]   && printf "swap     %s MB paged out, peak %s MB in use\n" "$SWAP_MB" "${SWAP_PEAK:-?}"
-		[ -n "$LOAD_PEAK" ] && printf "load     peak %s (1 min avg, %s cores), sampled every 30 s\n" "$LOAD_PEAK" "$CORES"
-		if [ -n "$IOWAIT_PCT" ] || [ -n "$DISK_READ_MB" ]; then
+		# Print these as a block, "n/a" rather than a missing line: a report with a
+		# hole in it is unreadable, and n/a is itself a finding worth seeing. When
+		# the build never started, say so once instead of four misleading n/a.
+		if [ "$ELAPSED" -eq 0 ]; then
+			printf "system   not measured, the build did not start\n"
+		else
+			if [ -n "$DISK_MB" ]; then
+				printf "disk     %s MB written to %s\n" "$DISK_MB" "$BOOT_DISK"
+			else
+				printf "disk     n/a (no readable counter for the disk holding /)\n"
+			fi
+			printf "swap     %s MB paged out, peak %s MB in use\n" "${SWAP_MB:-n/a}" "${SWAP_PEAK:-n/a}"
+			printf "load     peak %s (1 min avg, %s cores), sampled every 30 s\n" "${LOAD_PEAK:-n/a}" "$CORES"
 			printf "io       %s%% iowait, card busy %s%% of the build, %s MB read\n" \
-				"${IOWAIT_PCT:-?}" "${DISK_BUSY_PCT:-?}" "${DISK_READ_MB:-?}"
+				"${IOWAIT_PCT:-n/a}" "${DISK_BUSY_PCT:-n/a}" "${DISK_READ_MB:-n/a}"
 		fi
 		[ -n "$DEB" ]       && printf "package  %s\n" "$(basename "$DEB")"
 		echo "==========================================="
@@ -167,6 +191,15 @@ summary () {
 log "repo   $REPO_URL"
 log "branch $REPO_BRANCH"
 log "board  $MODEL - $RAM_MB MB, $CORES cores, $DEB_ARCH"
+
+# Resolve the counters now, not after a 70 min build: a tester who is going to
+# get "n/a" in the report should know before starting, not after.
+if resolve_boot_disk; then
+	log "disk   counters on $BOOT_DISK"
+else
+	log "[!] no readable /sys/block/*/stat for the disk holding / - the disk and io"
+	log "[!] figures will read n/a. The build itself is unaffected."
+fi
 
 # How many parallel rustc this board can hold. Same formula as the branch under
 # test: budget ~1 GB of RAM per job, clamp to [1, nproc]. MemTotal always reads a
@@ -262,7 +295,7 @@ done ) &
 SAMPLER=$!
 trap 'kill $SAMPLER 2>/dev/null' EXIT
 
-DISK_START="$(disk_written_mb)"          # also resolves BOOT_DISK
+DISK_START="$(disk_written_mb)"
 DISK_STAT_START="$(disk_stat)"
 CPU_STAT_START="$(cpu_stat)"
 SWAP_START="$(swap_written_mb)"
