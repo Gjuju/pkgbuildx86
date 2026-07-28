@@ -31,11 +31,12 @@ compiler needs more than most Pis have and the rest comes from swap:
 | Pi 5 | 4-8 GB | around 25 min |
 | Pi 4 | 2-4 GB | 30 to 45 min |
 | Pi 3B, 3B+ | 1 GB | 40 to 55 min (measured) |
-| Pi 3A+, Zero 2 W | 512 MB | **several hours** |
+| Pi 3A+, Zero 2 W | 512 MB | **about 6 hours** |
 
-**On a 512 MB board, be patient.** An earlier attempt ran 7 hours without
-finishing, on an older compiler; we are re-measuring it now. Plan to leave it
-running overnight rather than watching it.
+**On a 512 MB board, be patient - but it does work.** A user reported a
+successful build on a Pi 3A+ in roughly 6 hours, at moOde's default of 4 jobs
+and with an older compiler. Plan to leave it running overnight rather than
+watching it.
 
 **A slow build is not a stuck build.** To tell them apart, look at the log - it
 keeps growing as long as work is happening:
@@ -204,8 +205,12 @@ The cost is not free. Two jobs write 88% more to the card than one. That is a
 fair trade for 13 minutes on a one-off build, but if you care more about your SD
 card than about the wait, one job is a legitimate choice.
 
-Not yet measured: a 512 MB board, and 4 jobs on a 2 GB board. If you have
-either, those are the two runs worth posting.
+One report from outside this table: a Pi 3A+ (512 MB) built successfully in
+about 6 hours at 4 jobs, on rustc 1.85. It is the only 512 MB result we have,
+and it says the default does finish there - just slowly.
+
+Not yet measured: a 512 MB board on a current compiler, and 4 jobs on a 2 GB
+board. If you have either, those are the two runs worth posting.
 
 ### Where the card writes come from
 

@@ -419,8 +419,8 @@ rm -f "$PKG_DIR"/dist/binary/librespot_*.deb
 # Set the expectation from this board's RAM. A 512 MB tester told "25 to 90 min"
 # kills the run at hour three, and a killed run is data we never get back.
 if [ "$RAM_MB" -lt 700 ]; then
-	log "** Building librespot - on a board this small, expect SEVERAL HOURS, not"
-	log "** minutes. It is not stuck: $LOG keeps growing. Leave it running."
+	log "** Building librespot - on a board this small expect HOURS, not minutes:"
+	log "** a Pi 3A+ took about 6. It is not stuck, $LOG keeps growing. Leave it."
 elif [ "$RAM_MB" -lt 1500 ]; then
 	log "** Building librespot - expect 40 to 55 min on a 1 GB board"
 elif [ "$RAM_MB" -lt 3000 ]; then
