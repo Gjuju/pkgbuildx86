@@ -26,8 +26,9 @@ installed and no service is touched, so the player keeps working meanwhile.
 
 ## Running over SSH
 
-Most people run this from another machine over SSH. **A build takes 25 to 90
-minutes, and it dies the moment the SSH session ends** - whatever ends it:
+Most people run this from another machine over SSH. **A build on a Pi 3B takes
+25 to 90 minutes, and it dies the moment the SSH session ends** - whatever ends
+it:
 
 - the laptop or desktop you are connected from going to sleep
 - the wifi dropping, the router restarting, switching network
@@ -161,7 +162,7 @@ One board, one compiler, one variable - the job count. Raspberry Pi 3B rev 1.2,
 three built with `--stack`.
 
 | jobs | time | written | swapped out | peak swap | read | peak load | card busy |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | **53m10s** | 1931 MB | 1153 MB | 1114 MB | 2164 MB | 2.10 | 10% |
 | 2 | **39m42s** | 3635 MB | 2856 MB | 1494 MB | 4940 MB | 4.36 | 30% |
 | 3 | 39m26s | 4705 MB | 3933 MB | 1514 MB | 6606 MB | 6.88 | 44% |
@@ -189,7 +190,7 @@ moOde swaps to a 4 GB file on the card itself (`Mechanism=swapfile`,
 Comparing the two figures shows what the extra jobs actually cost:
 
 | jobs | swapped out | written in total | share that is swap |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | 1153 MB | 1931 MB | 60% |
 | 2 | 2856 MB | 3635 MB | 79% |
 | 3 | 3933 MB | 4705 MB | **84%** |
