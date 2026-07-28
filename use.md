@@ -20,15 +20,39 @@ sudo ./librespot-test-build.sh
 It asks how many parallel jobs to use and suggests a count for your board. Press
 Enter to accept the suggestion.
 
-Then wait. The build takes 25 to 90 min depending on the board and the job
-count - around 40 min on a 1 GB Pi 3B, nearer 25 on a Pi 5. Nothing is
-installed and no service is touched, so the player keeps working meanwhile.
+Then wait. Nothing is installed and no service is touched, so the player keeps
+working meanwhile.
+
+How long it takes depends mostly on how much RAM the board has, because the
+compiler needs more than most Pis have and the rest comes from swap:
+
+| board | RAM | expect |
+| --- | --- | --- |
+| Pi 5 | 4-8 GB | around 25 min |
+| Pi 4 | 2-4 GB | 30 to 45 min |
+| Pi 3B, 3B+ | 1 GB | 40 to 55 min (measured) |
+| Pi 3A+, Zero 2 W | 512 MB | **several hours** |
+
+**On a 512 MB board, be patient.** An earlier attempt ran 7 hours without
+finishing, on an older compiler; we are re-measuring it now. Plan to leave it
+running overnight rather than watching it.
+
+**A slow build is not a stuck build.** To tell them apart, look at the log - it
+keeps growing as long as work is happening:
+
+```bash
+tail -3 ~/librespot-test-build.log
+```
+
+If the last line changes between two looks a few minutes apart, it is working.
+Killing it loses the measurement, and a killed run is not a failed run - it just
+leaves us with no data for the board we know least about.
 
 ## Running over SSH
 
-Most people run this from another machine over SSH. **A build on a Pi 3B takes
-25 to 90 minutes, and it dies the moment the SSH session ends** - whatever ends
-it:
+Most people run this from another machine over SSH. **The build runs for
+somewhere between half an hour and several hours, see the table above, and it
+dies the moment the SSH session ends** - whatever ends it:
 
 - the laptop or desktop you are connected from going to sleep
 - the wifi dropping, the router restarting, switching network

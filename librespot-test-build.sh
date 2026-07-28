@@ -416,7 +416,18 @@ cd "$PKG_DIR" || fail "no package dir $PKG_DIR"
 # success signal - a stale one would let a failed build report success.
 rm -f "$PKG_DIR"/dist/binary/librespot_*.deb
 
-log "** Building librespot - 25 to 90 min depending on the board, about 90 on a 1 GB Pi 3B+"
+# Set the expectation from this board's RAM. A 512 MB tester told "25 to 90 min"
+# kills the run at hour three, and a killed run is data we never get back.
+if [ "$RAM_MB" -lt 700 ]; then
+	log "** Building librespot - on a board this small, expect SEVERAL HOURS, not"
+	log "** minutes. It is not stuck: $LOG keeps growing. Leave it running."
+elif [ "$RAM_MB" -lt 1500 ]; then
+	log "** Building librespot - expect 40 to 55 min on a 1 GB board"
+elif [ "$RAM_MB" -lt 3000 ]; then
+	log "** Building librespot - expect 30 to 45 min on a 2 GB board"
+else
+	log "** Building librespot - expect around 25 min on this board"
+fi
 
 # Known failure, unrelated to the job count: rustc 1.96.0 on aarch64 can die
 # with SIGSEGV inside LLVM (FPPassManager::runOnFunction, in a codegen worker
