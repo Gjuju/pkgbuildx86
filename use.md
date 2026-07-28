@@ -181,3 +181,20 @@ card than about the wait, one job is a legitimate choice.
 
 Not yet measured: a 512 MB board, and 4 jobs on a 2 GB board. If you have
 either, those are the two runs worth posting.
+
+### Where the card writes come from
+
+moOde swaps to a 4 GB file on the card itself (`Mechanism=swapfile`,
+`FixedSizeMiB=4096`), not to zram, so every paged out megabyte is a real write.
+Comparing the two figures shows what the extra jobs actually cost:
+
+| jobs | swapped out | written in total | share that is swap |
+|---|---|---|---|
+| 1 | 1153 MB | 1931 MB | 60% |
+| 2 | 2856 MB | 3635 MB | 79% |
+| 3 | 3933 MB | 4705 MB | **84%** |
+
+The build itself writes about the same in all three runs, roughly 780 MB - it
+produces identical artifacts, so it should. Everything above that, and all of
+the growth, is paging. Past two jobs on a 1 GB board the card is not doing more
+work, it is just moving pages back and forth, for no time saved at all.
