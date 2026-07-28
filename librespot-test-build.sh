@@ -319,9 +319,9 @@ cat <<EOF
   board. That is the default this test compares against.
 
   Each parallel rustc can peak at roughly 1.1 GB of RAM, so a small board is
-  always oversubscribed and leans on swap. What matters is by how much.
-  Measured on 1 GB boards: 2 jobs built it in 39 min without trouble, while
-  4 jobs took 81 min and crashed the board twice.
+  always oversubscribed and leans on swap. Measured on a 1 GB Pi 3B: 1 job
+  took 53 min, 2 jobs 40 min, and 3 jobs were no faster than 2 while writing
+  a third more to the card.
 
   Advised for this board: $ADVISED job(s) out of $CORES cores.
 

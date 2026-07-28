@@ -4,8 +4,10 @@ This branch builds the Spotify Connect renderer (librespot) the same way moOde's
 **Install** button in Renderer Config does, but caps how many compiler jobs run in
 parallel so the board does not run out of RAM and swap to the SD card.
 
-On a 1 GB board the current moOde build runs 4 jobs: 81 min, and the board
-crashed twice during testing. Two jobs built the same package in 39 min.
+moOde currently builds with one job per core - four on a Pi 3B. On a 1 GB Pi 3B,
+two jobs build the package in 40 min where one job takes 53 min, and three jobs
+are no faster than two while writing a third more to the SD card. Measurements
+in the appendix at the end of this page.
 
 ## Run it
 
@@ -151,3 +153,31 @@ own Install button does.
 
 Download the script rather than piping it into a shell - piped, it cannot ask you
 anything and will pick the job count on its own.
+
+## Appendix: measurements so far
+
+One board, one compiler, one variable - the job count. Raspberry Pi 3B rev 1.2,
+905 MB usable, rustc 1.96.0, moOde 10.3.1, Trixie arm64, on its SD card. All
+three built with `--stack`.
+
+| jobs | time | written | swapped out | peak swap | read | peak load | card busy |
+|---|---|---|---|---|---|---|---|
+| 1 | **53m10s** | 1931 MB | 1153 MB | 1114 MB | 2164 MB | 2.10 | 10% |
+| 2 | **39m42s** | 3635 MB | 2856 MB | 1494 MB | 4940 MB | 4.36 | 30% |
+| 3 | 39m26s | 4705 MB | 3933 MB | 1514 MB | 6606 MB | 6.88 | 44% |
+
+Going from 1 to 2 jobs saves 25% of the time. Going from 2 to 3 saves nothing -
+16 seconds, which is noise - and writes 29% more to the card. Two is the knee of
+the curve on a 1 GB board, which is what the heuristic advises there.
+
+The peak swap figures show why. Even a single rustc pushes 1114 MB into swap on
+a 905 MB board, so one compiler already exceeds the RAM. By two jobs the working
+set has plateaued at about 1500 MB, and a third job only makes swap churn
+faster: it moves more pages without ever holding more of them.
+
+The cost is not free. Two jobs write 88% more to the card than one. That is a
+fair trade for 13 minutes on a one-off build, but if you care more about your SD
+card than about the wait, one job is a legitimate choice.
+
+Not yet measured: a 512 MB board, and 4 jobs on a 2 GB board. If you have
+either, those are the two runs worth posting.
