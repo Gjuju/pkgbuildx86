@@ -66,7 +66,8 @@ build running. Reconnect and `tail -f` again, or just read the file at the end.
 
 ## Report back
 
-The script ends with a summary block. Copy it into your forum reply:
+The script ends with a summary block like this one. Copy yours into your
+forum reply:
 
 ```text
 ===== copy this into your forum reply =====
@@ -77,8 +78,9 @@ os       RPiOS: 13.6 Trixie 64-bit | Linux: 6.18.34 64-bit (arm64)
 ram      905 MB, 4 cores
 rustc    1.96.0
 jobs     2 chosen (1 advised)
+stack    default, RUST_MIN_STACK not set
 branch   test/librespot-cargo-jobs @ 3120e91
-result   OK in 38m55s
+result   OK in 38m55s total, 33m10s compiling
 disk     3823 MB written to mmcblk0
 swap     3055 MB paged out, peak 1501 MB in use
 load     peak 3.94 (1 min avg, 4 cores), sampled every 30 s
@@ -111,7 +113,7 @@ so the same command may well succeed on the next attempt.
 stack, which is the remedy rustc itself suggests:
 
 ```bash
-sudo RUST_MIN_STACK=16777216 ./librespot-test-build.sh --keep-clone
+sudo ./librespot-test-build.sh --stack --keep-clone
 ```
 
 `--keep-clone` reuses what is already downloaded. Post that second report too,
@@ -135,12 +137,17 @@ Then reboot and turn Spotify Connect on in Configure > Renderers.
 sudo ./librespot-test-build.sh --jobs 4      # force a job count, no prompt
 sudo ./librespot-test-build.sh --auto        # no prompt, let the script decide
 sudo ./librespot-test-build.sh --keep-clone  # reuse the download, for a retry
+sudo ./librespot-test-build.sh --stack       # build with a bigger compiler stack
 sudo ./librespot-test-build.sh --help
 ```
 
 `--keep-clone` resets the copy already in your home directory onto the latest
 version of the branch instead of downloading it again - use it for a second run.
 Without it, every run starts from a fresh download.
+
+`--stack` raises the compiler stack to 16 MB for that run only, nothing is kept
+on your system. It is off by default so that a normal run measures what moOde's
+own Install button does.
 
 Download the script rather than piping it into a shell - piped, it cannot ask you
 anything and will pick the job count on its own.

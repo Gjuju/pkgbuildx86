@@ -17,7 +17,10 @@
 #   --jobs N       parallel rustc jobs, skips the prompt ('auto' to let
 #                  build.sh decide, which is what pressing Enter does)
 #   --auto         skip the prompt, let build.sh decide
-#   --keep-clone   reuse the existing clone (just fetch + checkout the branch)
+#   --stack        build with RUST_MIN_STACK=16777216, the remedy rustc names
+#                  for the aarch64 SIGSEGV. Off by default, so a plain run
+#                  measures what moOde's Install button actually does.
+#   --keep-clone   reuse the existing clone (reset it onto the branch)
 #
 # Env overrides: REPO_URL, REPO_BRANCH, and RUST_MIN_STACK - see the note next
 # to the build call about the rustc SIGSEGV on aarch64.
@@ -32,6 +35,8 @@ SQLDB=/var/local/www/db/moode-sqlite3.db
 KEEP_CLONE=0
 JOBS=""
 NO_PROMPT=0
+USE_STACK=0
+STACK_SIZE=16777216	# the value rustc names in its own SIGSEGV hint
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -43,6 +48,7 @@ while [ $# -gt 0 ]; do
 		                  && { echo "--jobs takes a number or 'auto'" >&2; exit 1; }
 		              ;;
 		--auto|--yes) NO_PROMPT=1 ;;
+		--stack)      USE_STACK=1 ;;
 		# print the header comment, whatever line it starts on
 		-h|--help)    awk 'NR > 2 && /^#/ {sub(/^# ?/, ""); print; next} NR > 2 {exit}' "$0"; exit 0 ;;
 		*)            echo "Unknown option: $1" >&2; exit 1 ;;
@@ -162,6 +168,7 @@ CLONE_DIR="$HOME_DIR/pkgbuildx86"
 PKG_DIR="$CLONE_DIR/packages/librespot"
 LOG="$HOME_DIR/librespot-test-build.log"
 SAMPLES="$HOME_DIR/librespot-test-build.samples"
+MARK="$HOME_DIR/.librespot-test-build.mark"
 
 # We run as root, so everything we drop in the home is root owned. Hand it back
 # on every exit path - including a failed build and Ctrl-C, which is exactly
@@ -204,6 +211,8 @@ DISK_READ_MB=""
 DISK_BUSY_PCT=""
 LOAD_PEAK=""
 USED_JOBS=""
+COMPILE_SECS=""
+STACK_SOURCE=""
 DEB=""
 
 summary () {
@@ -218,9 +227,23 @@ summary () {
 		printf "ram      %s MB, %s cores\n" "$RAM_MB" "$CORES"
 		printf "rustc    %s\n"           "${RUSTC_VER:-not installed}"
 		printf "jobs     %s %s (%s advised)\n" "${USED_JOBS:-unknown}" "${JOBS_SOURCE:-?}" "${ADVISED:-?}"
+		if [ -n "${RUST_MIN_STACK:-}" ]; then
+			printf "stack    RUST_MIN_STACK=%s (%s)\n" "$RUST_MIN_STACK" "${STACK_SOURCE:-?}"
+		else
+			printf "stack    default, RUST_MIN_STACK not set\n"
+		fi
 		printf "branch   %s @ %s\n"      "$REPO_BRANCH" "${HEAD_SHA:-?}"
-		printf "result   %s%s\n"         "$result" \
-			"$([ "$ELAPSED" -gt 0 ] && printf " in %dm%02ds" $((ELAPSED / 60)) $((ELAPSED % 60)))"
+		# Two durations: the total covers build.sh entirely - installing rustup and
+		# cargo-deb when absent, and cloning librespot - while "compiling" starts at
+		# the cargo-deb call. Only the second compares across testers.
+		if [ "$ELAPSED" -eq 0 ]; then
+			printf "result   %s\n" "$result"
+		elif [ -n "$COMPILE_SECS" ]; then
+			printf "result   %s in %dm%02ds total, %dm%02ds compiling\n" "$result" \
+				$((ELAPSED / 60)) $((ELAPSED % 60)) $((COMPILE_SECS / 60)) $((COMPILE_SECS % 60))
+		else
+			printf "result   %s in %dm%02ds total\n" "$result" $((ELAPSED / 60)) $((ELAPSED % 60))
+		fi
 		# Print these as a block, "n/a" rather than a missing line: a report with a
 		# hole in it is unreadable, and n/a is itself a finding worth seeing. When
 		# the build never started, say so once instead of four misleading n/a.
@@ -403,16 +426,36 @@ log "** Building librespot - 25 to 90 min depending on the board, about 90 on a 
 #     help: you can increase rustc's stack size by setting RUST_MIN_STACK=16777216
 #
 # It is a codegen thread stack overflow, so it strikes at random and a rebuild
-# with the same job count may well succeed. To test the workaround:
-#
-#     sudo RUST_MIN_STACK=16777216 ./librespot-test-build.sh --jobs 2
-#
-# sudo does pass it through (verified in /proc/<rustc>/environ), and it is
-# inherited by build.sh and cargo from here, so nothing to plumb.
+# with the same job count may well succeed. --stack applies the remedy; it is
+# off by default so a plain run still measures what moOde itself does. Passing
+# RUST_MIN_STACK in the environment works too, sudo included (verified in
+# /proc/<rustc>/environ) - either way the report says which.
+if [ "$USE_STACK" = 1 ]; then
+	export RUST_MIN_STACK="$STACK_SIZE"
+	STACK_SOURCE="--stack"
+elif [ -n "${RUST_MIN_STACK:-}" ]; then
+	STACK_SOURCE="from the environment"
+fi
+log "stack  ${RUST_MIN_STACK:-default, not set}"
+
+# build.sh echoes "building librespot with CARGO_BUILD_JOBS=" immediately before
+# calling cargo-deb. Timestamping that line splits the toolchain setup and the
+# librespot clone off from the compile itself, which is what makes two testers
+# comparable: one starting from a bare moOde also pays for installing rustup and
+# building cargo-deb. PIPESTATUS[0] still refers to build.sh, first in the pipe.
+rm -f "$MARK"
 START=$SECONDS
-./build.sh 2>&1 | tee -a "$LOG"
+./build.sh 2>&1 | while IFS= read -r line || [ -n "$line" ]; do
+	case "$line" in
+		*"building librespot with CARGO_BUILD_JOBS="*) echo "$SECONDS" > "$MARK" ;;
+	esac
+	printf '%s\n' "$line"
+done | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-ELAPSED=$((SECONDS - START))
+END=$SECONDS
+ELAPSED=$((END - START))
+[ -s "$MARK" ] && COMPILE_SECS=$((END - $(cat "$MARK")))
+rm -f "$MARK"
 
 sync
 [ -n "$DISK_START" ] && DISK_MB=$(( $(disk_written_mb) - DISK_START ))
