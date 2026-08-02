@@ -128,7 +128,9 @@ package  librespot_0.8.0-1moode1_arm64.deb
 A build that fails prints the same block, with what it got to. Those runs are the
 most useful ones, please post them too.
 
-The full log is `librespot-test-build.log` in your home directory.
+The full log is `librespot-test-build.log` in your home directory. A new run
+moves the previous one to `librespot-test-build.log.prev`, so retrying does not
+lose the log of the run that failed - you can still post it afterwards.
 
 ## If the build fails with a rustc crash
 

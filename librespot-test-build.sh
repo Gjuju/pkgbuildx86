@@ -263,6 +263,7 @@ summary () {
 		[ -n "$DEB" ]       && printf "package  %s\n" "$(basename "$DEB")"
 		echo "==========================================="
 		echo "full log: $LOG"
+		[ -f "$LOG.prev" ] && echo "previous run: $LOG.prev"
 	} | tee -a "$LOG"
 }
 
@@ -270,6 +271,11 @@ summary () {
 # Main
 #
 
+# The log of a failed run is the one we most want posted, and the retry we
+# suggest right after a failure would overwrite it. Keep the previous one.
+if [ -f "$LOG" ]; then
+	mv -f "$LOG" "$LOG.prev"
+fi
 : > "$LOG"
 log "repo   $REPO_URL"
 log "branch $REPO_BRANCH"
