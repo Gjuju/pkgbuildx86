@@ -430,9 +430,9 @@ if [ "$RAM_MB" -lt 700 ]; then
 elif [ "$RAM_MB" -lt 1500 ]; then
 	log "** Building librespot - expect 40 to 55 min on a 1 GB board"
 elif [ "$RAM_MB" -lt 3000 ]; then
-	log "** Building librespot - expect 30 to 45 min on a 2 GB board"
+	log "** Building librespot - expect around 20 min on a 2 GB board"
 else
-	log "** Building librespot - expect around 25 min on this board"
+	log "** Building librespot - expect around 10 min on this board"
 fi
 
 # Known failure, unrelated to the job count: rustc 1.96.0 on aarch64 can die

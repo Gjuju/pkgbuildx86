@@ -28,16 +28,31 @@ compiler needs more than most Pis have and the rest comes from swap:
 
 | board | RAM | expect |
 | --- | --- | --- |
-| Pi 5 | 4-8 GB | around 25 min |
-| Pi 4 | 2-4 GB | 30 to 45 min |
+| Pi 5 | 4-8 GB | around 10 min (measured 7m13 on a 4 GB) |
+| Pi 4 | 2-4 GB | around 20 min (measured 21m19 on a 2 GB) |
 | Pi 3B, 3B+ | 1 GB | 40 to 55 min (measured) |
 | Pi 3A+, Zero 2 W | 512 MB | **about 6 hours, when it succeeds** |
+
+Two things move these numbers and neither is the board. A third or more of a
+first run is toolchain setup and downloading, not compiling - the Pi 4 above
+spent 14m22 of its 21m19 compiling, the Pi 5 4m04 of 7m13 - and `--keep-clone`
+skips that on a second run. And the SD card matters as much as the RAM: two
+1 GB boards at one job moved the same bytes to within 15% of each other and
+finished 24 minutes apart, the slower one with its card busy 47% of the build
+against 10%. A tired card can cost you half again the time.
 
 **On a 512 MB board, expect hours - and expect it may not succeed.** One user
 reported a successful build on a Pi 3A+ in roughly 6 hours, at moOde's default
 of 4 jobs and on an older compiler. Others have had it fail. Plan to leave it
 running overnight rather than watching it, and if it does fail, post the report:
 those are the runs this whole exercise is about.
+
+That said, this is where the testing has already paid off. Small boards had
+stopped producing a build at all, and capping the jobs and raising the compiler
+stack have brought them back: a 1 GB Pi 3B+ that had failed several attempts
+finished at one job, and 512 MB boards have completed the same way. It is not a
+guarantee - one Pi 3A+ has still failed with both applied - but the two settings
+are what turned "no build" back into "a build".
 
 **A slow build is not a stuck build**, and the log is a poor way to tell the two
 apart. Cargo only prints `Compiling <crate>` when it *starts* a crate, so the
@@ -185,7 +200,8 @@ Without it, every run starts from a fresh download.
 
 `--stack` raises the compiler stack to 16 MB for that run only, nothing is kept
 on your system. It is off by default so that a normal run measures what moOde's
-own Install button does.
+own Install button does. It costs no time: the same board run twice, once each
+way, finished within three seconds of itself on a Pi 4 and within one on a Pi 5.
 
 Download the script rather than piping it into a shell - piped, it cannot ask you
 anything and will pick the job count on its own.
@@ -220,8 +236,32 @@ about 6 hours at 4 jobs, on rustc 1.85. It shows the default *can* finish on
 512 MB, not that it reliably does - other users on small boards see it fail,
 which is what started this.
 
-Not yet measured: a 512 MB board on a current compiler, and 4 jobs on a 2 GB
-board. If you have either, those are the two runs worth posting.
+### Reports from other boards
+
+Different boards, different cards, different owners - so these are not a
+controlled series like the table above, and only the paired rows compare
+directly. All on rustc 1.96.
+
+| board | RAM | jobs | stack | result | compiling | total |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pi 5 | 4049 MB | 4 | default | OK | 4m04 | 7m13 |
+| Pi 5 | 4049 MB | 4 | 16 MB | OK | 4m05 | 7m12 |
+| Pi 4B | 1844 MB | 4 | default | OK | 14m22 | 21m19 |
+| Pi 4B | 1844 MB | 4 | 16 MB | OK | 14m19 | 21m16 |
+| Pi 3B+ | 905 MB | 1 | default | OK, after several failed attempts | 76m50 | 77m02 |
+| Pi 3A+ | 415 MB | 1 | 16 MB | failed | - | - |
+
+The two pairs are the same board run twice with only the stack changed, and
+they land on top of each other - raising the stack is free.
+
+The Pi 3B+ is the run that matters most. It is an ordinary 1 GB board, not an
+exotic small one, it had failed several times at the default, and it succeeded
+at one job with the stack left alone - so the job count alone was enough there.
+Its failed attempts were not posted, because until now a retry overwrote their
+log.
+
+Still worth posting: a Zero 2 W, a 512 MB board that succeeds on the current
+compiler, and above all **the log of anything that fails**.
 
 ### Where the card writes come from
 
