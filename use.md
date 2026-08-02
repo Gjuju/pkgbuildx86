@@ -39,14 +39,21 @@ of 4 jobs and on an older compiler. Others have had it fail. Plan to leave it
 running overnight rather than watching it, and if it does fail, post the report:
 those are the runs this whole exercise is about.
 
-**A slow build is not a stuck build.** To tell them apart, look at the log - it
-keeps growing as long as work is happening:
+**A slow build is not a stuck build**, and the log is a poor way to tell the two
+apart. Cargo only prints `Compiling <crate>` when it *starts* a crate, so the
+file sits unchanged for as long as that crate takes. On a 512 MB board we have
+watched it stay silent for over half an hour with the build working the whole
+time. Look at the compiler instead:
 
 ```bash
-tail -3 ~/librespot-test-build.log
+top -bn1 | grep rustc
 ```
 
-If the last line changes between two looks a few minutes apart, it is working.
+A `rustc` line means work is being done, whatever the log is doing. For a
+certainty, run it again a minute later and check that the `TIME+` column has
+grown - that column is CPU time actually consumed, so it only moves if the
+compiler is running.
+
 Killing it loses the measurement, and a killed run is not a failed run - it just
 leaves us with no data for the board we know least about.
 
