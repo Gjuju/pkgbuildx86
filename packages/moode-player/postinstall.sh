@@ -675,8 +675,31 @@ function on_upgrade() {
 	# Introduced in r1034
 	dpkg --compare-versions $VERSION lt "10.3.4-1moode1"
 	if [ $? -eq 0 ]; then
-		echo "There are no postinstall updates for 10.3.4"
-		#echo "** Apply postinstall updates for 10.3.4"
+		#echo "There are no postinstall updates for 10.3.4"
+		echo "** Apply postinstall updates for 10.3.4"
+		# Refactor Deezer framework to Qobuz
+		# - Remove old deezer files
+		sqlite3 $SQLDB "DROP TABLE cfg_deezer"
+		if [ -f /var/log/moode_deezevent.log ]; then
+			rm /var/log/moode_deezevent.log
+		fi
+		if [ -f /var/log/moode_pleezer.log ]; then
+			rm /var/log/moode_pleezer.log
+		fi
+		# - Create cfg_qobuz table
+		sqlite3 $SQLDB "CREATE TABLE cfg_qobuz (id INTEGER PRIMARY KEY, param CHAR (32), value CHAR (32))"
+		cat $SQLDB".sql" | grep "INSERT INTO cfg_qobuz" | sqlite3 $SQLDB
+		# - Update cfg_system params
+		sqlite3 $SQLDB "UPDATE cfg_system SET value='228343' WHERE param='feat_bitmask'"
+		TMP=$(sqlite3 $SQLDB "SELECT value FROM cfg_system WHERE param='deezername'")
+		NAME=$(echo $TMP | sed 's/Deezer/Qobuz/')
+		sqlite3 $SQLDB "UPDATE cfg_system SET param='qobuzname', value='$NAME' WHERE param='deezername'"
+		sqlite3 $SQLDB "UPDATE cfg_system SET param='qobuzsvc', value='0' WHERE param='deezersvc'"
+		sqlite3 $SQLDB "UPDATE cfg_system SET param='qbzactive', value='0' WHERE param='deezactive'"
+		sqlite3 $SQLDB "UPDATE cfg_system SET param='rsmafterqbz', value='No' WHERE param='rsmafterdeez'"
+		# Update cfg_plugin
+		sqlite3 $SQLDB "DROP TABLE cfg_plugin"
+		cat $SQLDB".sql" | grep "INSERT INTO cfg_plugin" | sqlite3 $SQLDB
 	fi
 
     # --------------------------------------------------------------------------
