@@ -698,7 +698,7 @@ function on_upgrade() {
 		sqlite3 $SQLDB "UPDATE cfg_system SET param='qbzactive', value='0' WHERE param='deezactive'"
 		sqlite3 $SQLDB "UPDATE cfg_system SET param='rsmafterqbz', value='No' WHERE param='rsmafterdeez'"
 		# - Update cfg_plugin
-		sqlite3 $SQLDB "DROP TABLE cfg_plugin"
+		sqlite3 $SQLDB "DELETE FROM cfg_plugin"
 		cat $SQLDB".sql" | grep "INSERT INTO cfg_plugin" | sqlite3 $SQLDB
 	fi
 
