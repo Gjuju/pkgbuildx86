@@ -713,6 +713,20 @@ function on_upgrade() {
 		sqlite3 $SQLDB "DELETE FROM cfg_rcucache"
 		truncate /var/log/moode_radiocover_plus.log --size 0
 		sed -i 's/^LOG_LEVEL=.*/LOG_LEVEL=ERROR/' /etc/radiocover-plus/config.txt
+		# Qobuz updates
+		# - Turn service off
+		sqlite3 $SQLDB "UPDATE cfg_system SET value='0' WHERE param='qobuzsvc'"
+		# - Reload cfg_qobuz
+		sqlite3 $SQLDB "DELETE FROM cfg_qobuz"
+		cat $SQLDB".sql" | grep "INSERT INTO cfg_qobuz" | sqlite3 $SQLDB
+		# - Update cfg_plugin to pibuz
+		sqlite3 $SQLDB "UPDATE cfg_plugin SET plugin='v2-pibuz', version='2.4.0-1moode1' WHERE type='qobuz-connect'"
+		# - Remove old qbzd files
+		rm -f /var/log/moode_qbzd.log
+		rm -rf /root/.config/qbzd
+		rm -rf /root/.local/share/qbzd
+		rm -rf /root/.cache/qbz
+		rm -rf /root/.local/share/qbz
 	fi
 
     # --------------------------------------------------------------------------
